@@ -8,7 +8,7 @@
         public string? a { get; set; }
         public string? b { get; set; }
         public string? c { get; set; }
-        public string? ErrorMsg { get; set; }
+        
     }
 
 }

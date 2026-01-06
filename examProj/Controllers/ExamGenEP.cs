@@ -34,15 +34,6 @@ namespace examProj.Controllers
                 )
                 .ToListAsync();
 
-            // لو في ErrorMsg
-            if (result.Count > 0 && result[0].ErrorMsg != null)
-            {
-                return BadRequest(new
-                {
-                    message = result[0].ErrorMsg
-                });
-            }
-
             return Ok(result);
         }
     }
