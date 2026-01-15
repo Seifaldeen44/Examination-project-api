@@ -20,6 +20,9 @@ namespace examProj.Data
 
         public DbSet<ExamResultDto> ExamResults { get; set; }
 
+        public DbSet<StudentExamGradeDto> StudentExamGrades { get; set; }
+
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Stud_Course>()
@@ -27,6 +30,10 @@ namespace examProj.Data
 
             modelBuilder.Entity<ExamQuestionDto>().HasNoKey();
             modelBuilder.Entity<ExamResultDto>().HasNoKey();
+
+            base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<StudentExamGradeDto>().HasNoKey();
         }
 
 

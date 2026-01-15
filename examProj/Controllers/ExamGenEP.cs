@@ -20,21 +20,17 @@ namespace examProj.Controllers
 
         // POST: api/Exam/generate
         [HttpPost("generate")]
-        public async Task<IActionResult> GenerateExam(
-            string courseName,
-            int mcqNum,
-            int tfNum)
+        public async Task<IActionResult> GenerateExam(string courseName)
         {
             var result = await _context.ExamQuestions
                 .FromSqlRaw(
-                    "EXEC dbo.SP_ExamGenerate @CourseName, @MCQ_num, @TF_num",
-                    new SqlParameter("@CourseName", courseName),
-                    new SqlParameter("@MCQ_num", mcqNum),
-                    new SqlParameter("@TF_num", tfNum)
+                    "EXEC dbo.SP_ExamGenerate @CourseName",
+                    new SqlParameter("@CourseName", courseName)
                 )
                 .ToListAsync();
 
             return Ok(result);
         }
+
     }
 }

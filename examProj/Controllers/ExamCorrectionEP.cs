@@ -48,5 +48,33 @@ namespace examProj.Controllers
                 });
             }
         }
+
+        // GET: api/Exam/student-grades/{studentId}
+        [HttpGet("student-grades/{studentId}")]
+        public async Task<IActionResult> GetStudentGrades(int studentId)
+        {
+            var result = await _context.StudentExamGrades
+                .FromSqlRaw(@"
+            SELECT 
+                e.Ex_ID,
+                c.Crs_Name AS CourseName,
+                e.TotalDegree AS StudentDegree,
+                e.total_exam_degree AS TotalExamDegree,
+                e.Ex_Date AS ExamDate
+            FROM Instructor.Exam e
+            JOIN HR.Course c ON e.Crs_ID = c.Crs_ID
+            WHERE e.St_ID = @St_ID
+              AND e.TotalDegree <> -1
+            ORDER BY e.Ex_Date DESC
+        ",
+                new SqlParameter("@St_ID", studentId))
+                .ToListAsync();
+
+            return Ok(result);
+        }
+
+
+
+
     }
 }
