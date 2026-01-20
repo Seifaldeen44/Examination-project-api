@@ -1,323 +1,282 @@
 # Examination Project API
 
-A backend API to automate the full examination lifecycle for academic courses. Built with ASP.NET Core Web API, SQL Server, Entity Framework Core, and ADO.NET. The system uses SQL Server stored procedures for exam generation, answer persistence, and grading to ensure performance and transactional integrity.
+The Examination Project API is a backend system developed using ASP.NET Core Web API to automate the examination process.
+It handles exam generation, answer submission, and automatic correction using SQL Server and stored procedures.
 
 ---
 
 ## Quick overview
 
-- Purpose: Automate exam creation, delivery, submission, and grading.
-- Roles: Student and Instructor (role-based JWT authorization).
-- Core idea: Keep controllers thin, use services for orchestration, and execute heavy DB work inside stored procedures.
-- Key features:
-  - Automatic, per-student exam generation
-  - Secure submission handling
-  - Automatic grading for objective items
-  - Centralized SQL Server stored procedures for deterministic behavior
+- Purpose: Automate exam generation and grading
+- Reduce manual correction effort
+- Ensure fair and consistent exams
+- Use database-level logic for performance
+- Provide a clean and scalable backend design
 
 ---
 
-## Technology stack
+## Technologies used
 
-- ASP.NET Core Web API (C#)
-- SQL Server (database + stored procedures)
-- Entity Framework Core (domain models & migrations)
-- ADO.NET (high-performance stored-procedure calls)
-- JSON Web Tokens (JWT) for authentication
-- Optional: AutoMapper, Xunit/NUnit for tests
-
----
-
-## Repository layout (conceptual)
-
-- Controllers/ — thin API controllers
-- Services/ — business orchestration, calls stored procedures
-- DTOs/ — request/response models for API surface
-- Data/ — EF Core models, migrations, SQL script folder (stored procedures)
-- Scripts/ — SQL for schema, seed data, stored procedures
+- ASP.NET Core Web API
+- C#
+- SQL Server
+- Entity Framework Core
+- ADO.NET
+- SQL Stored Procedures
+- DTO Pattern
 
 ---
 
-## High-level workflow
+## System roles
 
-1. Instructor configures and publishes an exam (question pools, weights, time limit).
-2. Student requests a generated exam instance — API calls `sp_GenerateExamForStudent`.
-3. Stored procedure constructs an ExamAttempt with randomized questions and returns the instance.
-4. Student completes the exam and submits answers — API persists answers and calls `sp_SaveSubmission`.
-5. API calls `sp_GradeExamAttempt` (or the stored procedure grades as part of the save) to compute scores and per-question breakdown.
-6. Students and instructors query results and statistics.
+### Student
+- Login to the system
+- View enrolled courses
+- Generate exams
+- Submit answers
+- View exam grades
+
+### Instructor
+- Login to the system
+- Configure exam structure
+- Control number of questions per course
 
 ---
 
-## Stored procedures (important)
-The core DB logic lives in stored procedures for consistency and performance:
-- sp_GenerateExamForStudent(courseId, studentId, options)
-- sp_SaveSubmission(examAttemptId, answersJson)
-- sp_GradeExamAttempt(examAttemptId)
+## Project structure (conceptual)
 
-Make sure these are present and deployed to the target SQL Server before using generation or grading flows.
+examProj
+│
+├── Controllers
+│   ├── LoginController
+│   ├── StudentController
+│   ├── InstructorController
+│   ├── ExamController
+│   ├── ExamSubEP
+│   └── ExamCorrectionEP
+│
+├── Dto
+│   └── Data Transfer Objects
+│
+├── Models
+│   └── Database Entities
+│
+├── Data
+│   └── DbContext & Configuration
+│
+├── Program.cs
+└── examProj.csproj
 
 ---
 
 ## Authentication
 
-- Endpoint: POST /api/auth/login
-- Uses JWT. Token contains role claim (`Student` or `Instructor`).
-- All protected endpoints check the token and role claim.
+Login check verifies user role and id and returns user data.
 
-Cell: Example authentication request and response
+Cell: Login check (request)
 ```http
-POST /api/auth/login
+POST /api/login/check
 Content-Type: application/json
 ```
 
 ```json
-// Request
 {
-  "username": "student01",
-  "password": "P@ssw0rd!"
+  "role": "student",
+  "id": 5
 }
 ```
 
+Cell: Login check (response)
 ```json
-// Response
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "expiresIn": 3600,
-  "role": "Student",
-  "userId": 123
+  "role": "student",
+  "page": "students",
+  "id": 5,
+  "name": "Seif"
 }
 ```
 
 ---
 
-## Representative API endpoints
+## Student APIs
 
-Student endpoints
-- GET  /api/students/{studentId}/courses
-- GET  /api/students/{studentId}/exams/available
-- POST /api/exams/generate
-- GET  /api/exams/{examId}
-- POST /api/exams/{examId}/submit
-- GET  /api/students/{studentId}/grades
-- GET  /api/exams/{examId}/grade
+### Get student courses
+Returns courses the student is enrolled in.
 
-Instructor endpoints
-- POST /api/instructors/{instructorId}/exams/configure
-- GET  /api/instructors/{instructorId}/exams
-- PUT  /api/instructors/{instructorId}/exams/{examId}/publish
-- POST /api/instructors/{instructorId}/questions
-- GET  /api/instructors/{instructorId}/exams/{examId}/results
-
-Cell: Generate exam request (student)
+Cell: Get student courses (request)
 ```http
-POST /api/exams/generate
-Authorization: Bearer {token}
-Content-Type: application/json
+GET /api/student/{studentId}/courses
 ```
 
+Cell: Get student courses (response)
 ```json
-{
-  "courseId": 7,
-  "studentId": 123,
-  "options": {
-    "timeLimitMinutes": 90,
-    "shuffleQuestions": true,
-    "shuffleChoices": true
+[
+  {
+    "crs_ID": 2,
+    "crs_Name": "Databases"
   }
-}
+]
 ```
 
-Cell: Generate exam response (server returns instance)
-```json
-{
-  "examId": 1001,
-  "courseId": 7,
-  "studentId": 123,
-  "timeLimitMinutes": 90,
-  "startedAt": "2026-01-20T10:00:00Z",
-  "questions": [
-    {
-      "questionId": 501,
-      "sequence": 1,
-      "text": "Which of the following is a value type in C#?",
-      "choices": [
-        {"choiceId": 1, "text": "int"},
-        {"choiceId": 2, "text": "string"},
-        {"choiceId": 3, "text": "object"},
-        {"choiceId": 4, "text": "dynamic"}
-      ],
-      "type": "SingleChoice"
-    },
-    {
-      "questionId": 502,
-      "sequence": 2,
-      "text": "Select all that apply: Which database operations are ACID-compliant?",
-      "choices": [
-        {"choiceId": 5, "text": "Transactions"},
-        {"choiceId": 6, "text": "Indexes"},
-        {"choiceId": 7, "text": "Stored Procedures"},
-        {"choiceId": 8, "text": "Views"}
-      ],
-      "type": "MultipleChoice"
-    }
-  ]
-}
-```
+---
 
-Cell: Submit answers request
+### Generate exam
+Generates an exam based on course name.
+
+Cell: Generate exam (request)
 ```http
-POST /api/exams/1001/submit
-Authorization: Bearer {token}
+POST /api/Exam/generate?courseName=Databases
+```
+
+Cell: Generate exam (response)
+```json
+[
+  {
+    "questionId": 1,
+    "questionText": "What is SQL?",
+    "choiceA": "Language",
+    "choiceB": "Database",
+    "choiceC": "OS",
+    "choiceD": "Compiler"
+  }
+]
+```
+
+---
+
+### Submit exam answers
+Submits student answers in JSON format.
+
+Cell: Submit exam answers (request)
+```http
+POST /api/ExamSubEP/submit
 Content-Type: application/json
 ```
 
 ```json
 {
-  "examId": 1001,
-  "studentId": 123,
-  "submittedAt": "2026-01-20T11:15:00Z",
+  "ex_ID": 10,
+  "st_ID": 5,
   "answers": [
     {
-      "questionId": 501,
-      "selectedChoiceIds": [1]
-    },
-    {
-      "questionId": 502,
-      "selectedChoiceIds": [5, 7]
+      "questionId": 1,
+      "answer": "Language"
     }
   ]
 }
 ```
 
-Cell: Submit response (acknowledgement + grading)
+Cell: Submit exam answers (response)
 ```json
 {
-  "examAttemptId": 2003,
-  "status": "Submitted",
-  "gradingStatus": "Completed",
-  "grade": {
-    "score": 92.5,
-    "maxScore": 100,
-    "details": [
-      {"questionId": 501, "score": 50, "maxScore": 50},
-      {"questionId": 502, "score": 42.5, "maxScore": 50}
-    ]
-  }
+  "message": "Exam answers submitted successfully."
 }
 ```
 
 ---
 
-## Instructor: configure an exam (example)
+### Correct exam
+Automatically corrects the exam and calculates the total degree.
 
-Cell: Configure exam request
+Cell: Correct exam (request)
 ```http
-POST /api/instructors/42/exams/configure
-Authorization: Bearer {token}
+POST /api/ExamCorrectionEP/correct?exId=10
+```
+
+Cell: Correct exam (response)
+```json
+{
+  "examId": 10,
+  "totalDegree": 85
+}
+```
+
+---
+
+### Get student exam grades
+Returns all corrected exams for a student.
+
+Cell: Get student exam grades (request)
+```http
+GET /api/ExamCorrectionEP/student-grades/{studentId}
+```
+
+Cell: Get student exam grades (response)
+```json
+[
+  {
+    "ex_ID": 10,
+    "courseName": "Databases",
+    "studentDegree": 85,
+    "totalExamDegree": 100,
+    "examDate": "2024-06-01"
+  }
+]
+```
+
+---
+
+## Instructor APIs
+
+### Update exam configuration
+Allows instructor to update exam settings for a course.
+
+Cell: Update exam config (request)
+```http
+PUT /api/instructor/update-exam-config
 Content-Type: application/json
 ```
 
 ```json
 {
-  "courseId": 7,
-  "title": "Midterm - Data Structures",
-  "timeLimitMinutes": 90,
-  "questionPools": [
-    {"poolId": 10, "count": 10},
-    {"poolId": 11, "count": 5}
-  ],
-  "weights": {
-    "SingleChoice": 1.0,
-    "MultipleChoice": 1.5,
-    "ShortAnswer": 2.0
-  },
-  "randomize": true,
-  "publish": true
+  "ins_ID": 3,
+  "crs_ID": 2,
+  "mcq_Num": 8,
+  "tf_Num": 2
 }
 ```
 
-Cell: Configure response
-```json
-{
-  "examId": 1001,
-  "status": "Configured",
-  "publishStatus": "Published"
-}
+Cell: Update exam config (response)
+```
+Exam configuration updated successfully
 ```
 
 ---
 
-## How to run (developer quick-start)
+## System workflow
 
-Prerequisites:
-- .NET SDK (recommended LTS — e.g., .NET 6 or later)
-- SQL Server instance
-- Optional: Visual Studio or VS Code
-
-Cell: Install dotnet-ef (if needed)
-```bash
-dotnet tool install --global dotnet-ef
-```
-
-Cell: Restore, build, run
-```bash
-cd examProj
-dotnet restore
-dotnet build
-dotnet run
-```
-
-Default local URLs:
-- https://localhost:5001
-- http://localhost:5000
-
-Environment variables commonly used:
-- ASPNETCORE_ENVIRONMENT (Development / Production)
-- ConnectionStrings__DefaultConnection
-- Jwt__Key, Jwt__Issuer, Jwt__Audience
-
-Database setup:
-1. Create database (e.g., ExaminationDB).
-2. Run schema and stored-procedure SQL scripts located in the repository (Scripts/ or Data/).
-3. Alternatively, update connection string and run EF migrations:
-   Cell: Apply EF migrations
-   ```bash
-   dotnet ef database update
-   ```
-
-Important: Ensure stored procedures (sp_GenerateExamForStudent, sp_SaveSubmission, sp_GradeExamAttempt) are deployed before using generation/grading flows.
+1. Login
+2. View courses
+3. Generate exam
+4. Submit answers
+5. Automatic correction
+6. View grades
 
 ---
 
-## Design decisions (short)
+## Design decisions
 
-- Stored procedures centralize heavy, multi-row operations for performance, atomicity, and auditability.
-- DTOs decouple the external API contract from internal models.
-- Thin controllers + service layer improve testability and maintainability.
-
----
-
-## Testing
-
-Run unit and integration tests (if included):
-Cell: Run tests
-```bash
-dotnet test
-```
+- SQL stored procedures handle:
+  - Exam generation
+  - Answer submission
+  - Correction logic
+- DTOs isolate API contracts
+- Controllers act as a thin layer between API and database
 
 ---
 
-## Notes & tips
+## Key advantages
 
-- Keep sensitive keys (JWT signing key, DB credentials) out of source control — use environment variables or secret stores.
-- Tests should mock stored-procedure calls or use a test database with scripted stored procedures for deterministic results.
-- For high-concurrency scenarios, tune SQL Server settings and review stored-procedure transaction scopes.
+- Fully automated exam lifecycle
+- High performance using database logic
+- Clean and maintainable architecture
+- Easy to extend and modify
+- Suitable for academic use
 
 ---
 
 ## Author
 
-Seif Aldeen Hany Shaaban Awad
-
----
+Seif Aldeen Hany Shaaban Awad  
+Computer Science Student – Alexandria University  
+GitHub: https://github.com/Seifaldeen44
